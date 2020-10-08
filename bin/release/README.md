@@ -10,7 +10,13 @@
 #### Running
 
 ```bash
+./bin/release.sh
+```
+
+*or*
+
+```bash
 # Run from the same directory as this README file
-cd /path/to/metabase/release
-clojure -m release
+cd /path/to/metabase/bin/release
+clojure -M -m release
 ```
