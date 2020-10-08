@@ -161,6 +161,7 @@
                                  (user->id :rasta)
                                  [(card->ref card)]
                                  [{:channel_type  :email
+                                   :enabled       true
                                    :schedule_type :daily
                                    :schedule_hour 18
                                    :recipients    [{:email "foo@bar.com"}]}]
@@ -203,6 +204,7 @@
                                 :name          "We like to party"
                                 :cards         (map card->ref [card-2 card-1])
                                 :channels      [{:channel_type  :email
+                                                 :enabled       true
                                                  :schedule_type :daily
                                                  :schedule_hour 18
                                                  :recipients    [{:email "foo@bar.com"}
