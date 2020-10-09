@@ -2,14 +2,15 @@
   (:require [cheshire.core :as json]
             [clj-http.client :as http]
             [clojure.string :as str]
-            [release.common :as c]))
+            [release.common :as c]
+            [metabuild-common.core :as u]))
 
 (defn github-api-base []
   (str "https://api.github.com/repos/" (c/metabase-repo)))
 
 (defn github-api-request-headers []
   {"Content-Type"  "application/json"
-   "Authorization" (format "token %s" (c/env-or-throw :github-token))})
+   "Authorization" (format "token %s" (u/env-or-throw :github-token))})
 
 (defn milestones
   "Fetch open GitHub milestones for the current repo."

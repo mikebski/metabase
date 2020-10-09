@@ -1,48 +1,60 @@
 (ns release
-  (:require [colorize.core :as colorize]
+  (:require [clojure.string :as str]
+            [environ.core :as env]
             [flatland.ordered.map :as ordered-map]
+            [metabuild-common.core :as u]
             [release
-             [build :as build]
              [check-prereqs :as check-prereqs]
              [common :as c]
+             [docker :as docker]
              [draft-release :as draft-release]
-             [publish :as publish]
+             [elastic-beanstalk :as eb]
+             [git-tags :as git-tags]
+             [heroku :as heroku]
              [set-build-options :as set-build-options]
-             [validate :as validate]]))
+             [uberjar :as uberjar]
+             [update-website :as update-website]
+             [version-info :as version-info]]
+            [release.common.slack :as slack]))
 
 (set! *warn-on-reflection* true)
 
+(defn test-step []
+  (u/step "Test step"))
+
 (def ^:private steps*
   (ordered-map/ordered-map
-   :check-prereqs check-prereqs/check-prereqs
-   :set-options   set-build-options/prompt-and-set-build-options!
-   :build         build/build!
-   :draft-release draft-release/create-draft-release!
-   :publish       publish/publish!
-   :validate      validate/validate-release
-   ;; TODO -- we should loop in the Mac App build code here as well
-   ))
+   :test-step test-step
+   :build-uberjar                       uberjar/build-uberjar!
+   :build-docker                        docker/build-docker-image!
+   :push-git-tags                       git-tags/push-tags!
+   :upload-uberjar                      uberjar/upload-uberjar!
+   :push-docker-image                   docker/push-docker-image!
+   :publish-draft-release               draft-release/create-draft-release!
+   :update-heroku-buildpack             heroku/update-heroku-buildpack!
+   :publish-elastic-beanstalk-artifacts eb/publish-elastic-beanstalk-artifacts!
+   :update-docs                         update-website/update-website!
+   :update-version-info                 version-info/update-version-info!))
 
-(defn- do-step! [step-name]
-  (let [thunk (or (get steps* (keyword step-name))
-                  (throw (ex-info (format "Invalid step name: %s" step-name)
-                                  {:found (set (keys steps*))})))]
-    (println (colorize/magenta (format "Running step %s..." step-name)))
-    (thunk)))
-
-(defn- do-steps!
-  [steps]
-  (c/announce "Running steps: %s" steps)
+(defn- do-steps! [steps]
+  (slack/post-message! "%s started building %s `v%s` from branch `%s`..."
+                       (env/env :user)
+                       (str/upper-case (name (c/edition)))
+                       (c/version)
+                       (c/branch))
   (doseq [step-name steps]
-    (do-step! step-name))
-  (c/announce "Success."))
+    (slack/post-message! "Starting step `%s` :flushed:" step-name)
+    (let [thunk (or (get steps* step-name)
+                    (throw (ex-info (format "Invalid step name: %s" step-name)
+                                    {:found (set (keys steps*))})))]
+      (thunk))
+    (slack/post-message! "Finished `%s` :partyparrot:" step-name))
+  (u/announce "Success."))
 
 (defn -main [& steps]
-  (let [steps (or (seq steps)
-                  (keys steps*))]
-    (try
-      (do-steps! steps)
-      (catch Throwable e
-        (println (colorize/red (pr-str e)))
-        (System/exit -1)))
-    (System/exit 0)))
+  (u/exit-when-finished-nonzero-on-exception
+    (check-prereqs/check-prereqs)
+    (set-build-options/prompt-and-set-build-options!)
+    (let [steps (or (seq steps)
+                    (keys steps*))]
+      (do-steps! steps))))

@@ -2,36 +2,31 @@
   (:require [cheshire.core :as json]
             [clj-http.client :as http]
             [clojure.core.cache :as cache]
-            [clojure.java.io :as io]
+            [metabuild-common.core :as u]
             [release.common :as c]
-            [release.common.github :as github]
+            [release.common
+             [github :as github]
+             [hash :as hash]]
             [stencil loader
-             [core :as stencil]])
-  (:import org.apache.commons.codec.digest.DigestUtils))
+             [core :as stencil]]))
 
 ;; Disable caching of our template files for easier REPL debugging, we're only rendering them once anyways
 (stencil.loader/set-cache (cache/ttl-cache-factory {} :ttl 0))
 
-(defn- sha-256-sum [filename]
-  (with-open [is (io/input-stream (c/assert-file-exists filename))]
-    (DigestUtils/sha256Hex is)))
-
 (defn- generate-draft-changelog []
-  (c/step "Generate draft changelog"
+  (u/step "Generate draft changelog"
     (let [pre-release?                           (c/pre-release-version?)
           {bugs :bug, enhancements :enhancement} (group-by github/issue-type (github/milestone-issues))]
-      (stencil/render-file (c/assert-file-exists "release-template.md")
+      (stencil/render-file (u/assert-file-exists "release-template.md")
                            {:enhancements enhancements
                             :bug-fixes    bugs
                             :docker-tag   (c/docker-tag)
                             :download-url (c/artifact-download-url "metabase.jar")
                             :version      (c/version)
-                            :checksum     (sha-256-sum c/uberjar-path)}))))
-
-
+                            :checksum     (hash/sha-256-sum c/uberjar-path)}))))
 
 (defn- upload-draft-changelog! [changelog]
-  (c/step "Upload draft changelog (create draft release)"
+  (u/step "Upload draft changelog (create draft release)"
     (let [body (json/generate-string {:tag_name         (format "v%s" (c/version))
                                       :target_commitish (c/branch)
                                       :name             (format "Metabase v%s" (c/version))
@@ -42,8 +37,24 @@
                  {:headers (github/github-api-request-headers)
                   :body    body}))))
 
+(defn- validate-github-release []
+  (u/step "Validate GitHub release"
+    (throw (ex-info "TODO" {}))
+    #_(u/step (format "Validate latest release version is %s" (c/version))
+        ;;   latest_release=$(github-api "releases/latest" | jq -r '.tag_name')
+        ;;   check-equals "github: latest release" "v$VERSION" "$latest_release"
+        (throw (ex-info "TODO" {})))
+    #_(u/step (format "Validate release note JAR checksum matches checksum of %s" (c/artifact-download-url "metabase.jar"))
+      ;;   download-jar
+
+      ;;   jar_checksum=$(shasum -a 256 "$jar_file" | cut -d " " -f 1)
+      ;;   release_checksum=$(github-api "releases/tags/v$VERSION" | jq -r '.body' | grep -Eo '[a-f0-9]{64}' || true)
+      ;;   check-equals "github: release checksum" "$jar_checksum" "$release_checksum"
+      (throw (ex-info "TODO" {})))))
+
 (defn create-draft-release! []
-  (c/step "Create draft release"
+  (u/step "Create draft release"
     (let [changelog (generate-draft-changelog)]
       (upload-draft-changelog! changelog)
-      (c/announce "GitHub draft release for %s created." (c/version)))))
+      (u/announce "GitHub draft release for %s created." (c/version))))
+  (validate-github-release))
