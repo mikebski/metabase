@@ -3,7 +3,7 @@
 ###################
 
 # Build currently doesn't work on > Java 11 (i18n utils are busted) so build on 8 until we fix this
-FROM adoptopenjdk/openjdk8:alpine as builder
+FROM arm64v8/openjdk:buster as builder
 
 WORKDIR /app/source
 
@@ -18,7 +18,7 @@ ENV LC_CTYPE en_US.UTF-8
 # gettext: translations
 # java-cacerts: installs updated cacerts to /etc/ssl/certs/java/cacerts
 
-RUN apk add --update coreutils bash yarn git wget make gettext java-cacerts
+RUN apt-get update && apt-get -y install coreutils bash yarn git wget make gettext ca-certificates-java
 
 # lein:    backend dependencies and building
 ADD https://raw.github.com/technomancy/leiningen/stable/bin/lein /usr/local/bin/lein
